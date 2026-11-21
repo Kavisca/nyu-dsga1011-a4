@@ -5,13 +5,20 @@ import torch
 import transformers
 from transformers import T5ForConditionalGeneration, T5Config
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def setup_wandb(args):
     # Implement this if you wish to use wandb in your experiments
     pass
+
+def use_schema_tokens(args):
+    # Schema tokens are on by default for the from-scratch model only.
+    return (not args.finetune) and (not getattr(args, "no_schema_tokens", False))
 
 def initialize_model(args):
     '''
@@ -20,7 +27,17 @@ def initialize_model(args):
     or training a T5 model initialized with the 'google-t5/t5-small' config
     from scratch.
     '''
-    pass
+    checkpoint = "google-t5/t5-small"
+    if args.finetune:
+        model = T5ForConditionalGeneration.from_pretrained(checkpoint)
+    else:
+        config = T5Config.from_pretrained(checkpoint)
+        model = T5ForConditionalGeneration(config)
+    if use_schema_tokens(args):
+        from load_data import get_tokenizer
+        model.resize_token_embeddings(len(get_tokenizer(schema_tokens=True)))
+    model.to(DEVICE)
+    return model
 
 def mkdir(dirpath):
     if not os.path.exists(dirpath):
@@ -31,11 +48,21 @@ def mkdir(dirpath):
 
 def save_model(checkpoint_dir, model, best):
     # Save model checkpoint to be able to load the model later
-    pass
+    mkdir(checkpoint_dir)
+    filename = "best_model.pt" if best else "latest_model.pt"
+    torch.save(model.state_dict(), os.path.join(checkpoint_dir, filename))
+
 
 def load_model_from_checkpoint(args, best):
     # Load model from a checkpoint
-    pass
+    model_type = "ft" if args.finetune else "scr"
+    checkpoint_dir = os.path.join("checkpoints", f"{model_type}_experiments", args.experiment_name)
+    filename = "best_model.pt" if best else "latest_model.pt"
+    model = initialize_model(args)
+    state_dict = torch.load(os.path.join(checkpoint_dir, filename), map_location=DEVICE)
+    model.load_state_dict(state_dict)
+    model.to(DEVICE)
+    return model
 
 def initialize_optimizer_and_scheduler(args, model, epoch_length):
     optimizer = initialize_optimizer(args, model)

@@ -2,3 +2,11 @@
 __pycache__/
 *.pyc
 .claude/settings.local.json
+
+# Model checkpoints (shared via Google Drive; too large for GitHub)
+part1/out/
+part1/out_augmented/
+part2/checkpoints/
+# Local environments and logs
+.venv/
+*.log

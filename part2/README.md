@@ -37,3 +37,33 @@ For database records, ensure that the name of the submission files (in the `reco
 - `t5_ft_experiment_test.pkl` (for extra credit `t5_ft_experiment_ec_test.pkl`)
 
 ⚠️ Note that the predictions in each line of the .sql file or in each index of the list within the .pkl file must match each natural language query in `data/test.nl` in the order they appear.
+
+## Reproducing the reported results
+
+All commands are run from `part2/`. Checkpoints are not stored in this repository (see the Google Drive link in the report).
+
+**Fine-tuned T5 (Q5–Q7):** train with greedy evaluation, then decode the best checkpoint with 5-beam search.
+```bash
+python train_t5.py --finetune --experiment_name beam5 \
+  --learning_rate 5e-4 --weight_decay 0 --scheduler_type cosine --num_warmup_epochs 1 \
+  --max_n_epochs 10 --patience_epochs 3 --batch_size 16 --test_batch_size 16 --num_beams 1
+python train_t5.py --finetune --experiment_name beam5 --eval_only --num_beams 5
+```
+
+**T5 from scratch (extra credit, run `ec_lr3`):** random initialization, SQL lowercased, and 110 SQL schema identifiers added to the tokenizer (both on automatically when `--finetune` is omitted).
+```bash
+python train_t5.py --experiment_name experiment_ec \
+  --learning_rate 3e-4 --num_warmup_epochs 4 --max_n_epochs 40 --patience_epochs 40 \
+  --eval_every 4 --batch_size 32 --num_beams 1
+python error_analysis.py --sql results/t5_scr_experiment_ec_dev.sql --records records/t5_scr_experiment_ec_dev.pkl
+```
+With `--experiment_name experiment_ec`, the test outputs are also copied to the extra-credit submission names. `error_analysis.py` produces the counts in EC Table 5.
+
+Extra options added to `train_t5.py`: `--eval_only` (load the best checkpoint and run dev/test inference only), `--eval_every N` (run dev generation every N epochs), `--max_gen_len` (default 512), and `--no_schema_tokens`.
+
+## Submitted files
+
+| File | Model | Test Record F1 |
+|---|---|---|
+| `results/t5_ft_experiment_test.sql`, `records/t5_ft_experiment_test.pkl` | Fine-tuned T5, beam 5 | 75.29 |
+| `results/t5_ft_experiment_ec_test.sql`, `records/t5_ft_experiment_ec_test.pkl` | T5 from scratch (`ec_lr3`) | 56.59 |
